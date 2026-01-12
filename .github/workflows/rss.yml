@@ -2,15 +2,16 @@ name: Build Sympla RSS
 
 on:
   schedule:
-    - cron: '0 * * * *'
-  workflow_dispatch:
+    - cron: '0 * * * *'   # roda todo começo de hora
+  workflow_dispatch:       # permite rodar manualmente pelo botão Run Workflow
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -27,6 +28,6 @@ jobs:
         run: |
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
+          git fetch origin main
           git add rss.xml
-          git commit -m "update feed" || echo "no changes"
-          git push
+          git commit -m "update fe
