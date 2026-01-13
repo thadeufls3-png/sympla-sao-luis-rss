@@ -1,76 +1,59 @@
 import requests
+from bs4 import BeautifulSoup
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 
-GRAPHQL_URL = "https://discovery-next.svc.sympla.com.br/graphql"
+URL = "https://www.sympla.com.br/eventos/sao-luis-ma"
 
 def fetch_events():
-    query = {
-        "operationName": "SearchEvents",
-        "variables": {
-            "query": "",
-            "page": 1,
-            "city": "Sao Luis",
-            "state": "MA",
-            "size": 50,
-            "sort": "date_asc"
-        },
-        "query": """
-        query SearchEvents($query: String!, $page: Int!, $city: String, $state: String, $size: Int!, $sort: String) {
-            search(query: $query, page: $page, city: $city, state: $state, size: $size, sort: $sort) {
-                total
-                events {
-                    name
-                    url
-                    startDate
-                    description
-                    venue {
-                        name
-                    }
-                }
-            }
-        }
-        """
-    }
-
     headers = {
         "User-Agent": "Mozilla/5.0",
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "Origin": "https://www.sympla.com.br"
+        "Accept": "text/html"
     }
 
-    r = requests.post(GRAPHQL_URL, json=query, headers=headers)
-    data = r.json()
+    r = requests.get(URL, headers=headers)
+    soup = BeautifulSoup(r.text, "html.parser")
 
-    return data["data"]["search"]["events"]
+    cards = soup.select("a.sympla-card")
 
-def shorten(text, length=160):
-    if not text:
-        return ""
-    text = text.strip().replace("\n", " ")
-    return (text[:length] + "...") if len(text) > length else text
+    events = []
+
+    for card in cards:
+        name = card.get("data-name", "").strip()
+        link = card.get("href", "")
+        date_el = card.select_one(".qtfy416")
+        date = date_el.text.strip() if date_el else ""
+
+        venue_el = card.select_one(".pn67h1e")
+        venue = venue_el.text.strip() if venue_el else ""
+
+        img_el = card.select_one("img")
+        img = img_el.get("src") if img_el else ""
+
+        events.append({
+            "name": name,
+            "link": link,
+            "date": date,
+            "venue": venue,
+            "image": img
+        })
+
+    return events
 
 def build_rss(events):
     rss = ET.Element("rss", version="2.0")
     channel = ET.SubElement(rss, "channel")
 
-    ET.SubElement(channel, "title").text = "Eventos em São Luís - Sympla"
-    ET.SubElement(channel, "link").text = "https://www.sympla.com.br/eventos/sao-luis-ma"
+    ET.SubElement(channel, "title").text = "Eventos Sympla — São Luís"
+    ET.SubElement(channel, "link").text = URL
     ET.SubElement(channel, "description").text = "Feed automático dos eventos da Sympla em São Luís"
 
     for e in events:
         item = ET.SubElement(channel, "item")
         ET.SubElement(item, "title").text = e["name"]
-        ET.SubElement(item, "link").text = e["url"]
-
-        desc = shorten(e.get("description", ""))
-        ET.SubElement(item, "description").text = desc
-
-        start = e.get("startDate")
-        if start:
-            dt = datetime.fromisoformat(start.replace("Z", ""))
-            ET.SubElement(item, "pubDate").text = dt.astimezone(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S GMT")
+        ET.SubElement(item, "link").text = e["link"]
+        ET.SubElement(item, "description").text = f"{e['date']} — {e['venue']}"
+        ET.SubElement(item, "pubDate").text = datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S GMT")
 
     return ET.tostring(rss, encoding="utf-8", xml_declaration=True)
 
