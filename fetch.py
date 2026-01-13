@@ -10,7 +10,7 @@ def fetch_events():
         "variables": {
             "query": "",
             "page": 1,
-            "city": "São Luís",
+            "city": "Sao Luis",
             "state": "MA",
             "size": 50,
             "sort": "date_asc"
@@ -26,8 +26,6 @@ def fetch_events():
                     description
                     venue {
                         name
-                        city
-                        state
                     }
                 }
             }
@@ -35,8 +33,16 @@ def fetch_events():
         """
     }
 
-    r = requests.post(GRAPHQL_URL, json=query)
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Origin": "https://www.sympla.com.br"
+    }
+
+    r = requests.post(GRAPHQL_URL, json=query, headers=headers)
     data = r.json()
+
     return data["data"]["search"]["events"]
 
 def shorten(text, length=160):
@@ -58,16 +64,13 @@ def build_rss(events):
         ET.SubElement(item, "title").text = e["name"]
         ET.SubElement(item, "link").text = e["url"]
 
-        # descrição curta
         desc = shorten(e.get("description", ""))
         ET.SubElement(item, "description").text = desc
 
-        # pubDate
         start = e.get("startDate")
         if start:
             dt = datetime.fromisoformat(start.replace("Z", ""))
-            pub = dt.astimezone(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S GMT")
-            ET.SubElement(item, "pubDate").text = pub
+            ET.SubElement(item, "pubDate").text = dt.astimezone(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S GMT")
 
     return ET.tostring(rss, encoding="utf-8", xml_declaration=True)
 
